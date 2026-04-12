@@ -143,17 +143,46 @@ body[style*="background-color: rgb(26"] #pipeline-tracker-sidebar {
   color: #FFFFFF;
 }
 
-/* Value at risk */
-.pt-value-at-risk {
-  text-align: center;
-  padding: 4px 16px 12px;
-  font-size: 12px;
-  color: var(--pt-text-secondary);
+/* Outgoing / incoming pipeline value */
+.pt-dues-row {
+  display: flex;
+  gap: 10px;
+  padding: 6px 16px 12px;
+  justify-content: center;
 }
 
-.pt-value-at-risk strong {
-  color: var(--pt-red);
+.pt-due {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--pt-border);
+  background: var(--pt-bg-secondary);
+  text-align: center;
+}
+
+.pt-due-label {
+  font-size: 10px;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--pt-text-secondary);
+  margin-bottom: 4px;
+}
+
+.pt-due-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--pt-text);
+  line-height: 1.2;
+}
+
+.pt-due:first-child .pt-due-value {
+  color: var(--pt-yellow);
+}
+
+.pt-due:last-child .pt-due-value {
+  color: var(--pt-green);
 }
 
 /* Filter pills */

@@ -138,23 +138,38 @@ export async function getDealCounts() {
     waiting_on_you: 0,
     waiting_on_them: 0,
     scheduled: 0,
-    total_value_at_risk: 0,
+    /** Sum of deal_value where we owe the next step */
+    outgoing_dues_total: 0,
+    /** Sum of deal_value where they owe the next step */
+    incoming_dues_total: 0,
   };
 
   for (const deal of deals) {
+    const raw = deal.deal_value;
+    const v = raw === null || raw === undefined || raw === '' ? NaN : Number(raw);
+    const val = Number.isFinite(v) ? v : 0;
+
     switch (deal.current_state) {
       case 'stale':
         counts.stale++;
-        counts.total_value_at_risk += Number(deal.deal_value) || 0;
         break;
       case 'waiting_on_you':
         counts.waiting_on_you++;
+        counts.outgoing_dues_total += val;
         break;
       case 'waiting_on_them':
         counts.waiting_on_them++;
+        counts.incoming_dues_total += val;
         break;
       case 'scheduled':
         counts.scheduled++;
+        // Scheduled follow-ups still carry pipeline $ — count toward both buckets when value is set
+        if (val > 0) {
+          counts.outgoing_dues_total += val;
+          counts.incoming_dues_total += val;
+        }
+        break;
+      default:
         break;
     }
   }

@@ -8,7 +8,16 @@ function getSidebarHTML() {
       <span class="pt-scan-status">Scans every 5 min</span>
     </div>
     <div class="pt-badges" id="pt-badges"></div>
-    <div class="pt-value-at-risk" id="pt-value-at-risk"></div>
+    <div class="pt-dues-row" id="pt-dues-row">
+      <div class="pt-due">
+        <div class="pt-due-label">Outgoing dues</div>
+        <div class="pt-due-value" id="pt-outgoing-dues">$0</div>
+      </div>
+      <div class="pt-due">
+        <div class="pt-due-label">Incoming dues</div>
+        <div class="pt-due-value" id="pt-incoming-dues">$0</div>
+      </div>
+    </div>
     <div class="pt-filters" id="pt-filters"></div>
     <div class="pt-deals" id="pt-deals">
       <div class="pt-loading">Loading deals...</div>

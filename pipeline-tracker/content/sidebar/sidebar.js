@@ -90,10 +90,13 @@ function renderBadges(counts) {
     badge.addEventListener('click', () => setFilter(badge.dataset.filter));
   });
 
-  const riskEl = document.getElementById('pt-value-at-risk');
-  if (riskEl) {
-    const risk = counts.total_value_at_risk || 0;
-    riskEl.innerHTML = `Pipeline value at risk: <strong>${formatCurrency(risk)}</strong>`;
+  const outEl = document.getElementById('pt-outgoing-dues');
+  const inEl = document.getElementById('pt-incoming-dues');
+  if (outEl) {
+    outEl.textContent = formatCurrency(counts.outgoing_dues_total || 0);
+  }
+  if (inEl) {
+    inEl.textContent = formatCurrency(counts.incoming_dues_total || 0);
   }
 }
 
