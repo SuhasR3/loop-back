@@ -17,7 +17,7 @@
     "https://*.supabase.co/*"
   ],
   "oauth2": {
-    "client_id": "951781401687-69qut848abp83q1402fiva3asurtjiim.apps.googleusercontent.com",
+    "client_id": "YOUR_OAUTH_CLIENT_ID.apps.googleusercontent.com",
     "scopes": [
       "https://www.googleapis.com/auth/gmail.readonly"
     ]

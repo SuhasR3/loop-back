@@ -9,15 +9,15 @@ import {
 } from './supabase-client.js';
 
 const CONFIG = {
-  GROQ_API_KEY: '',
-  SUPABASE_URL: 'https://vfxeglbocncuobdelllk.supabase.co',
-  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZmeGVnbGJvY25jdW9iZGVsbGxrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5NTQ5MzEsImV4cCI6MjA5MTUzMDkzMX0.Ka5-CwinwfhxaTKzU-jboQGYpRob2IK3EGcGODcsGP4',
+  GROQ_API_KEY: '',          // Set via extension popup or chrome.storage.local
+  SUPABASE_URL: '',           // Set via extension popup or chrome.storage.local
+  SUPABASE_ANON_KEY: '',      // Set via extension popup or chrome.storage.local
   SCAN_DEBOUNCE_SECONDS: 60,
   PERIODIC_SCAN_MINUTES: 5,
   STALE_THRESHOLD_DAYS: 7,
   /** Inbox threads to consider per scan (each new thread uses 1 Groq call for classifyIsDeal; deals add more calls per message). */
-  MAX_THREADS_PER_SCAN: 25,
-  MAX_MESSAGES_PER_SCAN: 20,
+  MAX_THREADS_PER_SCAN: 20,
+  MAX_MESSAGES_PER_SCAN: 50,
   MAX_THREAD_DEPTH: 20,
 };
 
@@ -75,11 +75,11 @@ async function runScanPipeline() {
 
   const scanTimeout = setTimeout(async () => {
     if (scanInProgress) {
-      console.error('[LoopBack] Scan timed out after 45s');
-      await setScanStatus('error', 'Scan timed out after 45s — check service worker console for details');
+      console.error('[LoopBack] Scan timed out after 180s');
+      await setScanStatus('error', 'Scan timed out after 180s — check service worker console for details');
       scanInProgress = false;
     }
-  }, 45000);
+  }, 180000);
 
   try {
     const cfg = await getConfig();
@@ -261,16 +261,20 @@ async function runScanPipeline() {
         }));
 
         const newState = computeState(stateInput);
-        console.log(`[LoopBack]    → state: ${newState.state}, staleness: ${newState.staleness_days}d`);
+        console.log(`[LoopBack]    → direction: ${newState.direction}, timing: ${newState.timing}, terminal: ${newState.terminal}, staleness: ${newState.staleness_days}d`);
 
         await updateDealState(existingDeal.id, {
           currentState: newState.state,
+          direction: newState.direction,
+          timing: newState.timing,
+          terminal: newState.terminal,
           stalenessDays: newState.staleness_days,
           promisedDate: newState.promised_date,
           dealValue: newState.deal_value,
           lastActivityAt: newState.last_activity,
           lastActionSummary: newState.last_action_summary,
-          needsResponse: newState.state === 'waiting_on_you',
+          needsResponse: newState.direction === 'you_owe',
+          urgent: newState.urgent || false,
         });
         console.log(`[LoopBack]    → Deal state updated ✓`);
       } catch (err) {

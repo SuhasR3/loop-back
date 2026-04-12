@@ -9,7 +9,20 @@ const GROQ_MODEL = 'llama-3.3-70b-versatile';
 const JSON_SYSTEM =
   'You are a precise assistant. Every reply must be a single JSON object only — no markdown fences, no commentary.';
 
+// Rate limiter for Groq API (12000 TPM limit)
+let lastGroqCallTime = 0;
+async function rateLimitWait() {
+  const now = Date.now();
+  const elapsed = now - lastGroqCallTime;
+  if (elapsed < 1500) {
+    await sleep(1500 - elapsed);
+  }
+  lastGroqCallTime = Date.now();
+}
+
 async function callGroq(apiKey, userPrompt, retries = 3) {
+  // Apply rate limiting before attempting the call
+  await rateLimitWait();
   const url = `${GROQ_CHAT_URL}`;
 
   const body = {
@@ -101,11 +114,25 @@ export async function classifyIsDeal(apiKey, subject, firstFewMessages) {
     .map((m) => m.substring(0, 500))
     .join('\n---\n');
 
-  const prompt = `You are classifying email threads. Determine if this is a B2B sales/business deal thread.
+  const prompt = `You are classifying email threads. Determine if this thread is TRACKABLE — meaning it involves a real human interaction that could require follow-up, action, or response.
 
-A deal thread involves: sales outreach, pricing discussions, proposals, negotiations, partnership discussions, contract discussions, or business development conversations.
+TRACKABLE threads include (mark is_deal: true):
+- Any business deal, sales, pricing, proposal, partnership, or contract discussion
+- Event coordination, hackathon logistics, team assignments, scheduling
+- Meeting invitations, calendar events requiring response
+- Project collaboration, task assignments, work requests
+- Direct messages from real people asking questions or sharing updates
+- Any thread where someone is expecting a reply or action from you
+- Discussions about deadlines, submissions, assignments, grading
+- Payment, invoice, or financial discussions
 
-NOT a deal: newsletters, automated notifications, internal team chat, personal emails, support tickets, marketing blasts.
+NOT trackable (mark is_deal: false):
+- Automated newsletters or bulk marketing (e.g. "84 New Jobs Posted Today")
+- System notifications with no human sender (Sentry alerts, CI/CD, automated reports)
+- Login/security verification emails (OTP, "Secure link to log in")
+- Automated survey reminders with no personal context
+- Purely automated time-tracking or payroll system emails
+- Notification-only emails from tools like Jira, Notion (no direct human message)
 
 Thread subject: "${subject}"
 
@@ -118,14 +145,14 @@ Respond with ONLY this JSON object shape:
 {
   "is_deal": true or false,
   "confidence": number from 0.0 to 1.0,
-  "company": string or null,
-  "contact_name": string or null,
+  "company": string or null (organization or group name),
+  "contact_name": string or null (primary person's name),
   "contact_email": string or null
 }`;
 
   const result = await callGroq(apiKey, prompt);
   return {
-    isDeal: result.is_deal === true && (result.confidence || 0) >= 0.6,
+    isDeal: result.is_deal === true && (result.confidence || 0) >= 0.4,
     company: result.company || null,
     contactName: result.contact_name || null,
     contactEmail: result.contact_email || null,
@@ -140,10 +167,10 @@ export async function classifyMessage(apiKey, messageBody, direction, threadSubj
 
   const currentDate = new Date().toISOString().split('T')[0];
 
-  const prompt = `You are analyzing a single email message within a B2B sales thread.
+  const prompt = `You are analyzing a single email message within a tracked thread (could be a deal, event, project, or any actionable conversation).
 
 Thread subject: "${threadSubject}"
-Message direction: ${direction} (inbound = prospect wrote to us, outbound = we wrote to prospect)
+Message direction: ${direction} (inbound = someone wrote to us, outbound = we wrote to them)
 
 Previous messages in this thread (oldest first, for context):
 ---
@@ -165,18 +192,18 @@ Classify this message. Respond with ONLY this JSON object shape:
 }
 
 Intent definitions:
-- intro: First outreach or introduction message
-- ask: Requesting information, pricing, details, a meeting
-- commit: Agreeing to next steps, signing, purchasing
-- defer: Explicitly delaying
-- reject: Declining, not interested, going with competitor
-- agree: Positive acknowledgment, accepting terms, confirming
-- follow_up: Checking in, nudging
-- info: Sharing information without requesting action
+- intro: First outreach, introduction, or announcement message
+- ask: Requesting information, action, RSVP, details, or a meeting
+- commit: Agreeing to next steps, confirming participation, signing up
+- defer: Explicitly delaying or postponing ("let's discuss next week")
+- reject: Declining, not interested, canceling
+- agree: Positive acknowledgment, accepting terms, confirming receipt
+- follow_up: Checking in, nudging, reminder
+- info: Sharing information, updates, or status without requesting action
 
-For promised_date use ISO date; today's date is ${currentDate}. If vague, null.
+For promised_date use ISO date; today's date is ${currentDate}. If vague or none, null.
 
-For deal_value extract DEAL size in dollars; "$48k" -> 48000. Monthly pricing alone -> null unless total is clear.`;
+For deal_value extract monetary amounts in dollars if mentioned; "$48k" -> 48000. If no money discussed, null.`;
 
   return callGroq(apiKey, prompt);
 }

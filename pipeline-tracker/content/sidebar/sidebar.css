@@ -1,4 +1,4 @@
-/* Pipeline Tracker — Sidebar Design System */
+/* Pipeline Tracker — Sidebar Design System v2 */
 
 #pipeline-tracker-sidebar {
   --pt-bg: #FFFFFF;
@@ -12,6 +12,8 @@
   --pt-yellow: #EF9F27;
   --pt-red: #E24B4A;
   --pt-blue: #378ADD;
+  --pt-orange: #E8793C;
+  --pt-purple: #7C5CFC;
 }
 
 /* Dark mode detection via Gmail body class */
@@ -84,17 +86,41 @@ body[style*="background-color: rgb(26"] #pipeline-tracker-sidebar {
   color: var(--pt-text-secondary);
 }
 
-/* Badges row */
+/* ── Badge groups (Direction + Timing side by side) ─────────────── */
+
 .pt-badges {
   display: flex;
-  gap: 8px;
+  gap: 12px;
   padding: 14px 16px 8px;
   justify-content: center;
 }
 
+.pt-badge-group {
+  flex: 1;
+  min-width: 0;
+}
+
+.pt-badge-group-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--pt-text-secondary);
+  text-align: center;
+  margin-bottom: 6px;
+}
+
+.pt-badge-group-row {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
 .pt-badge {
-  width: 72px;
-  height: 60px;
+  flex: 1;
+  min-width: 0;
+  max-width: 64px;
+  height: 52px;
   border-radius: 8px;
   display: flex;
   flex-direction: column;
@@ -111,23 +137,19 @@ body[style*="background-color: rgb(26"] #pipeline-tracker-sidebar {
 }
 
 .pt-badge-count {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
   line-height: 1;
 }
 
 .pt-badge-label {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
 
-.pt-badge--stale {
-  background: var(--pt-red);
-  color: #FFFFFF;
-}
-
+/* Direction badges */
 .pt-badge--you-owe {
   background: var(--pt-yellow);
   color: #1A1A1A;
@@ -138,8 +160,19 @@ body[style*="background-color: rgb(26"] #pipeline-tracker-sidebar {
   color: #FFFFFF;
 }
 
-.pt-badge--scheduled {
+/* Timing badges */
+.pt-badge--active {
   background: var(--pt-blue);
+  color: #FFFFFF;
+}
+
+.pt-badge--scheduled {
+  background: var(--pt-purple);
+  color: #FFFFFF;
+}
+
+.pt-badge--stale {
+  background: var(--pt-red);
   color: #FFFFFF;
 }
 
@@ -227,25 +260,32 @@ body[style*="background-color: rgb(26"] #pipeline-tracker-sidebar {
   border-color: var(--pt-red);
 }
 
-.pt-pill--active[data-filter="waiting_on_you"] {
+.pt-pill--active[data-filter="you_owe"] {
   background: var(--pt-yellow);
   color: #1A1A1A;
   border-color: var(--pt-yellow);
 }
 
-.pt-pill--active[data-filter="waiting_on_them"] {
+.pt-pill--active[data-filter="they_owe"] {
   background: var(--pt-green);
   color: #FFFFFF;
   border-color: var(--pt-green);
 }
 
-.pt-pill--active[data-filter="scheduled"] {
+.pt-pill--active[data-filter="active"] {
   background: var(--pt-blue);
   color: #FFFFFF;
   border-color: var(--pt-blue);
 }
 
-/* Deal cards */
+.pt-pill--active[data-filter="scheduled"] {
+  background: var(--pt-purple);
+  color: #FFFFFF;
+  border-color: var(--pt-purple);
+}
+
+/* ── Deal cards ─────────────────────────────────────────────────── */
+
 .pt-deals {
   padding: 8px 16px;
   display: flex;
@@ -265,6 +305,10 @@ body[style*="background-color: rgb(26"] #pipeline-tracker-sidebar {
 .pt-deal-card:hover {
   border-color: var(--pt-text-secondary);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.pt-deal-card--urgent {
+  border-left: 3px solid var(--pt-red);
 }
 
 .pt-deal-card-top {
@@ -298,9 +342,11 @@ body[style*="background-color: rgb(26"] #pipeline-tracker-sidebar {
 .pt-deal-bottom {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
+/* State pills — direction */
 .pt-state-pill {
   display: inline-block;
   padding: 2px 8px;
@@ -309,26 +355,33 @@ body[style*="background-color: rgb(26"] #pipeline-tracker-sidebar {
   font-weight: 500;
 }
 
+.pt-state-pill--you_owe {
+  background: rgba(239, 159, 39, 0.12);
+  color: var(--pt-yellow);
+}
+
+.pt-state-pill--they_owe {
+  background: rgba(29, 158, 117, 0.12);
+  color: var(--pt-green);
+}
+
+/* State pills — timing */
+.pt-state-pill--active {
+  background: rgba(55, 138, 221, 0.12);
+  color: var(--pt-blue);
+}
+
+.pt-state-pill--scheduled {
+  background: rgba(124, 92, 252, 0.12);
+  color: var(--pt-purple);
+}
+
 .pt-state-pill--stale {
   background: rgba(226, 75, 74, 0.12);
   color: var(--pt-red);
 }
 
-.pt-state-pill--waiting_on_you {
-  background: rgba(239, 159, 39, 0.12);
-  color: var(--pt-yellow);
-}
-
-.pt-state-pill--waiting_on_them {
-  background: rgba(29, 158, 117, 0.12);
-  color: var(--pt-green);
-}
-
-.pt-state-pill--scheduled {
-  background: rgba(55, 138, 221, 0.12);
-  color: var(--pt-blue);
-}
-
+/* Terminal state pills (legacy) */
 .pt-state-pill--dead {
   background: rgba(107, 107, 107, 0.12);
   color: var(--pt-text-secondary);
@@ -339,9 +392,28 @@ body[style*="background-color: rgb(26"] #pipeline-tracker-sidebar {
   color: var(--pt-green);
 }
 
+/* Urgent badge */
+.pt-urgent-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  background: var(--pt-red);
+  color: #FFFFFF;
+  animation: pt-pulse 2s ease-in-out infinite;
+}
+
+@keyframes pt-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
 .pt-staleness {
   font-size: 11px;
   font-weight: 500;
+  margin-left: auto;
 }
 
 .pt-staleness--green { color: var(--pt-green); }
@@ -358,7 +430,25 @@ body[style*="background-color: rgb(26"] #pipeline-tracker-sidebar {
   text-overflow: ellipsis;
 }
 
-/* Timeline (expanded view) */
+/* ── Colored blips (tiny dots next to each email in timeline) ──── */
+
+.pt-blip {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
+.pt-blip--green  { background: #22c55e; }
+.pt-blip--red    { background: #ef4444; }
+.pt-blip--orange { background: #f97316; }
+.pt-blip--yellow { background: #eab308; }
+.pt-blip--blue   { background: #3b82f6; }
+
+/* ── Timeline (expanded view) ───────────────────────────────────── */
+
 .pt-timeline {
   padding: 12px 16px 20px;
 }
@@ -429,6 +519,13 @@ body[style*="background-color: rgb(26"] #pipeline-tracker-sidebar {
 .pt-timeline-date {
   font-size: 11px;
   color: var(--pt-text-secondary);
+  margin-bottom: 2px;
+}
+
+.pt-timeline-msg-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   margin-bottom: 2px;
 }
 

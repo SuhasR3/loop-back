@@ -67,14 +67,13 @@ export function getDirection(message, userEmail) {
 }
 
 export async function getUserEmail(token) {
-  const cached = await chrome.storage.local.get('user_email');
-  if (cached.user_email) return cached.user_email;
-
+  // Always fetch fresh to avoid stale cache from a different account
   const resp = await fetch(`${GMAIL_API_BASE}/profile`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await resp.json();
   const email = data.emailAddress;
+  console.log(`[LoopBack] Authenticated as: ${email}`);
   await chrome.storage.local.set({ user_email: email });
   return email;
 }

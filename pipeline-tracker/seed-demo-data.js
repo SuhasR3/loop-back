@@ -1,5 +1,5 @@
 /**
- * Demo data seeder for Pipeline Tracker.
+ * Demo data seeder for Pipeline Tracker v2 (dual-dimension state model).
  * Run with: node seed-demo-data.js
  *
  * Set environment variables or edit the constants below:
@@ -37,6 +37,15 @@ async function supabaseDelete(table) {
   });
 }
 
+/**
+ * Deals now have TWO independent dimensions:
+ *   direction: "you_owe" | "they_owe"
+ *   timing:    "active" | "scheduled" | "stale"
+ *   terminal:  null | "dead" | "won"
+ *
+ * current_state = composite string like "they_owe__stale" for backwards compat.
+ */
+
 const DEALS = [
   {
     thread_id: 'demo_bolt_dynamics',
@@ -45,7 +54,7 @@ const DEALS = [
     contact_email: 'sam.reyes@boltdynamics.com',
     company: 'Bolt Dynamics',
     deal_value: 36000,
-    current_state: 'stale',
+    current_state: 'they_owe__stale',
     staleness_days: 14,
     last_activity_at: daysAgo(14),
     last_action_summary: 'Review deck and respond',
@@ -64,7 +73,7 @@ const DEALS = [
     contact_email: 'derek.chen@acmerobotics.com',
     company: 'Acme Robotics',
     deal_value: 48000,
-    current_state: 'waiting_on_them',
+    current_state: 'they_owe__stale',
     staleness_days: 5,
     promised_date: daysAgoDate(6),
     last_activity_at: daysAgo(5),
@@ -84,7 +93,7 @@ const DEALS = [
     contact_email: 'lisa.park@novatech.io',
     company: 'NovaTech',
     deal_value: 120000,
-    current_state: 'waiting_on_you',
+    current_state: 'you_owe__active',
     staleness_days: 1,
     last_activity_at: daysAgo(1),
     last_action_summary: 'Can you send the SOW?',
@@ -103,7 +112,7 @@ const DEALS = [
     contact_email: 'raj.patel@meridianlabs.com',
     company: 'Meridian Labs',
     deal_value: 24000,
-    current_state: 'scheduled',
+    current_state: 'they_owe__scheduled',
     staleness_days: 0,
     promised_date: futureDate(4),
     last_activity_at: daysAgo(3),
@@ -122,7 +131,7 @@ const DEALS = [
     contact_email: 'maria@syncwave.co',
     company: 'SyncWave',
     deal_value: 85000,
-    current_state: 'stale',
+    current_state: 'they_owe__stale',
     staleness_days: 21,
     last_activity_at: daysAgo(21),
     last_action_summary: 'Sounds interesting, let me think',
@@ -141,7 +150,7 @@ const DEALS = [
     contact_email: 'jwong@atlascorp.com',
     company: 'Atlas Corp',
     deal_value: 200000,
-    current_state: 'waiting_on_them',
+    current_state: 'they_owe__active',
     staleness_days: 8,
     last_activity_at: daysAgo(8),
     last_action_summary: 'Sent proposal + pricing',
@@ -178,7 +187,7 @@ const DEALS = [
     contact_email: 'mike.chen@horizonsaas.com',
     company: 'Horizon SaaS',
     deal_value: 65000,
-    current_state: 'stale',
+    current_state: 'they_owe__stale',
     staleness_days: 10,
     last_activity_at: daysAgo(10),
     last_action_summary: 'Need to get budget approval',
@@ -197,7 +206,7 @@ const DEALS = [
     contact_email: 'anna@cloudforge.dev',
     company: 'CloudForge',
     deal_value: 42000,
-    current_state: 'waiting_on_you',
+    current_state: 'you_owe__active',
     staleness_days: 0,
     last_activity_at: daysAgo(0),
     last_action_summary: 'What\'s your implementation timeline?',
@@ -216,11 +225,11 @@ const DEALS = [
     contact_email: 'tom.brown@vertexlabs.io',
     company: 'Vertex Labs',
     deal_value: 90000,
-    current_state: 'stale',
+    current_state: 'you_owe__stale',
     staleness_days: 7,
     last_activity_at: daysAgo(7),
     last_action_summary: 'Will discuss internally this week',
-    needs_response: false,
+    needs_response: true,
     messages: [
       { gmail_message_id: 'vert_1', direction: 'outbound', intent: 'follow_up', summary: 'Follow-up on expansion discussion', message_date: daysAgo(14) },
       { gmail_message_id: 'vert_2', direction: 'inbound', intent: 'agree', summary: 'Team is growing, need to scale', message_date: daysAgo(12), deal_value: 90000 },
@@ -260,7 +269,7 @@ async function seed() {
     const { messages, ...dealData } = deal;
 
     const [created] = await supabasePost('deals', dealData);
-    console.log(`  ✓ Deal: ${dealData.company} (${dealData.current_state})`);
+    console.log(`  \u2713 Deal: ${dealData.company} (${dealData.current_state})`);
 
     for (const msg of messages) {
       await supabasePost('messages', {
@@ -268,16 +277,17 @@ async function seed() {
         deal_id: created.id,
       });
     }
-    console.log(`    → ${messages.length} messages`);
+    console.log(`    \u2192 ${messages.length} messages`);
   }
 
   console.log('\nDone! Seeded 10 deals with messages.');
-  console.log('State summary:');
-  console.log('  Stale: Bolt Dynamics, SyncWave, Horizon SaaS, Vertex Labs');
-  console.log('  Waiting on you: NovaTech, CloudForge');
-  console.log('  Waiting on them: Acme Robotics, Atlas Corp');
-  console.log('  Scheduled: Meridian Labs');
-  console.log('  Dead: Pinnacle AI');
+  console.log('State summary (direction / timing):');
+  console.log('  they_owe + stale:     Bolt Dynamics, Acme Robotics, SyncWave, Horizon SaaS');
+  console.log('  they_owe + active:    Atlas Corp');
+  console.log('  they_owe + scheduled: Meridian Labs');
+  console.log('  you_owe + active:     NovaTech, CloudForge');
+  console.log('  you_owe + stale:      Vertex Labs (URGENT)');
+  console.log('  dead:                 Pinnacle AI');
 }
 
 seed().catch(console.error);

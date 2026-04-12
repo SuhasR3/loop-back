@@ -1,27 +1,5 @@
-# Environment & secrets
 .env
-*.env.local
-
-# Cursor IDE
-.cursor/
-
-# Node
+.env.local
+.env.*.local
 node_modules/
-
-# OS files
 .DS_Store
-Thumbs.db
-
-# Python
-__pycache__/
-*.pyc
-*.pyo
-.venv/
-venv/
-
-# Logs
-*.log
-
-# Build artifacts
-dist/
-build/

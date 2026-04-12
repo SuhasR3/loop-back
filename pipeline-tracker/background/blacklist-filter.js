@@ -3,14 +3,9 @@ const DEFAULT_BLACKLIST = [
   '@notifications.google.com',
   '@noreply.google.com',
   'noreply@medium.com',
-  '@linkedin.com',
   '@facebookmail.com',
   '@amazonses.com',
   'no-reply@accounts.google.com',
-  '@mail.notion.so',
-  '@slack.com',
-  '@atlassian.net',
-  '@jira.atlassian.com',
 ];
 
 export async function isBlacklisted(senderEmail) {
