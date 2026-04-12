@@ -72,6 +72,14 @@ async function runScanPipeline() {
   await setScanStatus('scanning');
   console.log('[LoopBack] Scan started');
 
+  const scanTimeout = setTimeout(async () => {
+    if (scanInProgress) {
+      console.error('[LoopBack] Scan timed out after 60s');
+      await setScanStatus('error', 'Scan timed out after 60s — check service worker console for details');
+      scanInProgress = false;
+    }
+  }, 120000);
+
   try {
     const cfg = await getConfig();
     if (!cfg.GEMINI_API_KEY) {
@@ -277,16 +285,18 @@ async function runScanPipeline() {
     await setScanStatus('error', `Scan failed: ${err.message}`);
     console.error('[LoopBack] Scan pipeline error:', err);
   } finally {
+    clearTimeout(scanTimeout);
     scanInProgress = false;
   }
 }
 
-function notifyContentScript(type) {
-  chrome.tabs.query({ url: 'https://mail.google.com/*' }, (tabs) => {
-    for (const tab of tabs) {
-      chrome.tabs.sendMessage(tab.id, { type }).catch(() => {});
-    }
-  });
+async function notifyContentScript(type) {
+  const tabs = await chrome.tabs.query({ url: 'https://mail.google.com/*' });
+  for (const tab of tabs) {
+    chrome.tabs.sendMessage(tab.id, { type }).catch((err) => {
+      console.warn(`[LoopBack] Could not notify tab ${tab.id}:`, err.message);
+    });
+  }
 }
 
 // --- Event listeners ---

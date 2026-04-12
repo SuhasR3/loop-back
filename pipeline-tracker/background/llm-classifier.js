@@ -1,10 +1,13 @@
-const GEMINI_MODEL = 'gemini-2.0-flash';
+const GEMINI_MODEL = 'gemini-1.5-flash';
 
-async function callGemini(apiKey, prompt, retries = 3) {
+async function callGemini(apiKey, prompt, retries = 4) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
 
   for (let attempt = 0; attempt < retries; attempt++) {
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+
       const resp = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -12,7 +15,16 @@ async function callGemini(apiKey, prompt, retries = 3) {
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: { temperature: 0.1 },
         }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
+
+      if (resp.status === 429) {
+        const retryAfter = Math.min(30, Math.pow(2, attempt + 2));
+        console.warn(`[LoopBack] Gemini 429 rate limited, waiting ${retryAfter}s before retry…`);
+        await sleep(retryAfter * 1000);
+        continue;
+      }
 
       if (!resp.ok) {
         const errText = await resp.text();

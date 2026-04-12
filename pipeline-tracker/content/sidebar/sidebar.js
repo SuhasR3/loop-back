@@ -267,6 +267,10 @@ chrome.runtime.onMessage.addListener((message) => {
   }
 });
 
+// Poll scan status every 3s so the header always reflects the real state
+// even if the state_updated message is dropped
+setInterval(updateScanStatusBar, 3000);
+
 (function waitForSidebar() {
   if (document.getElementById('pipeline-tracker-sidebar')) {
     refreshSidebar();
