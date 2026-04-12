@@ -173,6 +173,33 @@ body {
   margin: 12px 0;
 }
 
+.popup-scan-status {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.popup-scan-status--error {
+  background: #fef2f2;
+  color: #E24B4A;
+  border: 1px solid #fecaca;
+}
+
+.popup-scan-status--scanning {
+  background: #eff6ff;
+  color: #378ADD;
+  border: 1px solid #bfdbfe;
+}
+
+.popup-scan-status--ok {
+  background: #f0fdf4;
+  color: #1D9E75;
+  border: 1px solid #bbf7d0;
+}
+
 .popup-stats {
   margin-top: 8px;
   font-size: 12px;

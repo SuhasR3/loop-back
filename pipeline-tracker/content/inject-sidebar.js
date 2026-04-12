@@ -36,7 +36,10 @@ function injectSidebar() {
   }
 
   injectToggleButton();
-  loadSidebarScript();
+
+  if (typeof refreshSidebar === 'function') {
+    refreshSidebar();
+  }
 }
 
 function injectToggleButton() {
@@ -73,12 +76,6 @@ function injectToggleButton() {
   });
 
   toolbar.appendChild(btn);
-}
-
-function loadSidebarScript() {
-  const script = document.createElement('script');
-  script.src = chrome.runtime.getURL('content/sidebar/sidebar.js');
-  document.body.appendChild(script);
 }
 
 // --- Scan trigger management ---

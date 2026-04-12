@@ -9,12 +9,13 @@ import {
 } from './supabase-client.js';
 
 const CONFIG = {
-  GEMINI_API_KEY: '',
-  SUPABASE_URL: '',
-  SUPABASE_ANON_KEY: '',
+  GEMINI_API_KEY: 'AIzaSyDrmB2nHoIkf6PVkQ6q425HTpqbJO_4Yyk',
+  SUPABASE_URL: 'https://vfxeglbocncuobdelllk.supabase.co',
+  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZmeGVnbGJvY25jdW9iZGVsbGxrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5NTQ5MzEsImV4cCI6MjA5MTUzMDkzMX0.Ka5-CwinwfhxaTKzU-jboQGYpRob2IK3EGcGODcsGP4',
   SCAN_DEBOUNCE_SECONDS: 60,
   PERIODIC_SCAN_MINUTES: 5,
   STALE_THRESHOLD_DAYS: 7,
+  MAX_THREADS_PER_SCAN: 1,
   MAX_MESSAGES_PER_SCAN: 20,
   MAX_THREAD_DEPTH: 20,
 };
@@ -48,6 +49,14 @@ async function shouldDebounce() {
   return elapsed < CONFIG.SCAN_DEBOUNCE_SECONDS;
 }
 
+async function setScanStatus(status, error = null) {
+  await chrome.storage.local.set({
+    scan_status: status,
+    scan_error: error,
+    scan_status_at: Date.now(),
+  });
+}
+
 async function runScanPipeline() {
   if (scanInProgress) {
     console.log('[LoopBack] Scan already in progress, skipping');
@@ -60,22 +69,38 @@ async function runScanPipeline() {
   }
 
   scanInProgress = true;
+  await setScanStatus('scanning');
   console.log('[LoopBack] Scan started');
 
   try {
     const cfg = await getConfig();
     if (!cfg.GEMINI_API_KEY) {
+      await setScanStatus('error', 'Gemini API key not configured. Enter it in the popup settings.');
       console.warn('[LoopBack] Gemini API key not configured');
       return;
     }
 
-    if (!(await ensureSupabase())) return;
+    if (!(await ensureSupabase())) {
+      await setScanStatus('error', 'Supabase not configured. Enter URL and anon key in popup settings.');
+      return;
+    }
 
-    const token = await getAuthToken();
+    let token;
+    try {
+      token = await getAuthToken();
+    } catch (authErr) {
+      const msg = authErr.message || String(authErr);
+      console.error('[LoopBack] getAuthToken failed:', msg);
+      await setScanStatus('error', `Gmail auth failed: ${msg}`);
+      return;
+    }
+
     const userEmail = await getUserEmail(token);
 
-    const threadIds = await getRecentThreadIds(token, 30);
-    console.log(`[LoopBack] Found ${threadIds.length} recent threads`);
+    console.log('[LoopBack] ① Fetching thread list from Gmail…');
+    const allThreadIds = await getRecentThreadIds(token, 30);
+    const threadIds = allThreadIds.slice(0, CONFIG.MAX_THREADS_PER_SCAN);
+    console.log(`[LoopBack] ② Got ${allThreadIds.length} threads, processing ${threadIds.length}`);
 
     let messagesProcessed = 0;
 
@@ -85,14 +110,22 @@ async function runScanPipeline() {
         break;
       }
 
-      if (await isSkippedThread(threadId)) continue;
+      console.log(`[LoopBack] ③ Checking thread ${threadId}…`);
+
+      if (await isSkippedThread(threadId)) {
+        console.log(`[LoopBack]    → already skipped, skipping`);
+        continue;
+      }
 
       let threadData;
       try {
+        console.log(`[LoopBack]    → fetching full thread…`);
         threadData = await getThread(token, threadId);
+        console.log(`[LoopBack]    → subject: "${threadData.subject}", ${threadData.messages.length} messages`);
       } catch (err) {
         if (err.message === 'AUTH_EXPIRED') {
-          chrome.identity.removeCachedAuthToken({ token });
+          chrome.identity.removeCachedAuthToken({ token }, () => {});
+          await setScanStatus('error', 'Gmail token expired. Reload the extension and try again.');
           console.error('[LoopBack] Auth expired, need re-auth');
           return;
         }
@@ -100,11 +133,16 @@ async function runScanPipeline() {
         continue;
       }
 
-      if (!threadData.messages || threadData.messages.length === 0) continue;
+      if (!threadData.messages || threadData.messages.length === 0) {
+        console.log(`[LoopBack]    → no messages, skipping`);
+        continue;
+      }
 
       const sender = parseSender(threadData.messages[0]);
+      console.log(`[LoopBack]    → sender: ${sender.email}`);
+
       if (await isBlacklisted(sender.email)) {
-        console.log(`[LoopBack] Blacklisted sender: ${sender.email}`);
+        console.log(`[LoopBack]    → BLACKLISTED, skipping`);
         await skipThread(threadId).catch(() => {});
         continue;
       }
@@ -112,15 +150,19 @@ async function runScanPipeline() {
       let existingDeal = await getExistingDeal(threadId);
 
       if (!existingDeal) {
+        console.log(`[LoopBack] ④ New thread — calling Gemini to classify as deal…`);
         const messageBodies = threadData.messages.slice(0, 3).map((m) => m.bodyText);
         const classification = await classifyIsDeal(cfg.GEMINI_API_KEY, threadData.subject, messageBodies);
         messagesProcessed++;
+        console.log(`[LoopBack]    → isDeal: ${classification.isDeal}, company: ${classification.company}`);
 
         if (!classification.isDeal) {
+          console.log(`[LoopBack]    → Not a deal, skipping thread`);
           await skipThread(threadId).catch(() => {});
           continue;
         }
 
+        console.log(`[LoopBack]    → IS a deal! Creating deal record…`);
         existingDeal = await createDeal({
           threadId,
           subject: threadData.subject,
@@ -128,6 +170,9 @@ async function runScanPipeline() {
           contactEmail: classification.contactEmail || sender.email,
           company: classification.company,
         });
+        console.log(`[LoopBack]    → Deal created: ${existingDeal.id}`);
+      } else {
+        console.log(`[LoopBack]    → Already tracked deal: ${existingDeal.company || existingDeal.subject}`);
       }
 
       const existingMsgIds = await getExistingMessages(existingDeal.id);
@@ -138,6 +183,7 @@ async function runScanPipeline() {
       }
 
       const newMessages = messages.filter((m) => !existingMsgIds.includes(m.id));
+      console.log(`[LoopBack] ⑤ ${newMessages.length} new messages to classify (${existingMsgIds.length} already stored)`);
       if (newMessages.length === 0) continue;
 
       const previousMsgs = messages
@@ -153,6 +199,7 @@ async function runScanPipeline() {
         if (messagesProcessed >= CONFIG.MAX_MESSAGES_PER_SCAN) break;
 
         const direction = getDirection(msg, userEmail);
+        console.log(`[LoopBack]    → classifying message ${msg.id} (${direction})…`);
         try {
           const classified = await classifyMessage(
             cfg.GEMINI_API_KEY,
@@ -161,6 +208,7 @@ async function runScanPipeline() {
             threadData.subject,
             previousMsgs
           );
+          console.log(`[LoopBack]    → intent: ${classified.intent}, summary: "${classified.summary}"`);
 
           await addMessage({
             dealId: existingDeal.id,
@@ -187,6 +235,7 @@ async function runScanPipeline() {
       }
 
       try {
+        console.log(`[LoopBack] ⑥ Recomputing deal state…`);
         const allMsgs = await getMessagesForDeal(existingDeal.id);
         const stateInput = allMsgs.map((m) => ({
           direction: m.direction,
@@ -198,6 +247,7 @@ async function runScanPipeline() {
         }));
 
         const newState = computeState(stateInput);
+        console.log(`[LoopBack]    → state: ${newState.state}, staleness: ${newState.staleness_days}d`);
 
         await updateDealState(existingDeal.id, {
           currentState: newState.state,
@@ -208,12 +258,14 @@ async function runScanPipeline() {
           lastActionSummary: newState.last_action_summary,
           needsResponse: newState.state === 'waiting_on_you',
         });
+        console.log(`[LoopBack]    → Deal state updated ✓`);
       } catch (err) {
         console.error(`[LoopBack] Error updating deal state for ${threadId}:`, err);
       }
     }
 
     await chrome.storage.local.set({ last_scan_timestamp: Date.now() });
+    await setScanStatus('idle');
     console.log(`[LoopBack] Scan complete. Processed ${messagesProcessed} messages.`);
 
     notifyContentScript('state_updated');
@@ -222,6 +274,7 @@ async function runScanPipeline() {
       chrome.alarms.create('periodic_scan', { delayInMinutes: CONFIG.PERIODIC_SCAN_MINUTES });
     }
   } catch (err) {
+    await setScanStatus('error', `Scan failed: ${err.message}`);
     console.error('[LoopBack] Scan pipeline error:', err);
   } finally {
     scanInProgress = false;

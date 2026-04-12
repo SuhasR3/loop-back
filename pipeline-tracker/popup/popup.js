@@ -96,17 +96,41 @@ async function updateStats() {
     if (!response) return;
 
     const deals = response.deals || [];
-    const counts = response.counts || {};
-    const statsEl = document.getElementById('stats');
-
     const blacklist = await chrome.storage.local.get('sender_blacklist');
     const blCount = (blacklist.sender_blacklist || []).length;
 
-    statsEl.innerHTML = `
-      Tracking <strong>${deals.length}</strong> deals · <strong>${blCount}</strong> senders blacklisted
-    `;
+    document.getElementById('stats').innerHTML =
+      `Tracking <strong>${deals.length}</strong> deals · <strong>${blCount}</strong> senders blacklisted`;
+
+    await updateScanStatus();
   } catch {
     // Background not ready yet
+  }
+}
+
+async function updateScanStatus() {
+  const data = await chrome.storage.local.get(['scan_status', 'scan_error', 'scan_status_at', 'last_scan_timestamp']);
+  const box = document.getElementById('scan-status-box');
+  if (!box) return;
+
+  const status = data.scan_status || 'idle';
+  const error = data.scan_error;
+  const lastScan = data.last_scan_timestamp
+    ? new Date(data.last_scan_timestamp).toLocaleTimeString()
+    : 'never';
+
+  if (status === 'error' && error) {
+    box.style.display = 'block';
+    box.className = 'popup-scan-status popup-scan-status--error';
+    box.innerHTML = `⚠ ${escapeHtml(error)}`;
+  } else if (status === 'scanning') {
+    box.style.display = 'block';
+    box.className = 'popup-scan-status popup-scan-status--scanning';
+    box.innerHTML = '⟳ Scanning…';
+  } else {
+    box.style.display = 'block';
+    box.className = 'popup-scan-status popup-scan-status--ok';
+    box.innerHTML = `✓ Last scan: ${lastScan}`;
   }
 }
 

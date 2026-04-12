@@ -18,8 +18,32 @@ async function refreshSidebar() {
 
     const timeline = document.getElementById('pt-timeline');
     if (timeline) timeline.style.display = 'none';
+
+    await updateScanStatusBar();
   } catch (err) {
     console.error('[LoopBack Sidebar] Error refreshing:', err);
+  }
+}
+
+async function updateScanStatusBar() {
+  const statusEl = document.querySelector('.pt-scan-status');
+  if (!statusEl) return;
+
+  const data = await chrome.storage.local.get(['scan_status', 'scan_error', 'last_scan_timestamp']);
+  const status = data.scan_status || 'idle';
+
+  if (status === 'error' && data.scan_error) {
+    statusEl.textContent = `⚠ ${data.scan_error}`;
+    statusEl.style.color = 'var(--pt-red)';
+  } else if (status === 'scanning') {
+    statusEl.textContent = '⟳ Scanning…';
+    statusEl.style.color = 'var(--pt-blue)';
+  } else {
+    const lastScan = data.last_scan_timestamp
+      ? new Date(data.last_scan_timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : 'never';
+    statusEl.textContent = `Last scan: ${lastScan}`;
+    statusEl.style.color = '';
   }
 }
 
@@ -243,4 +267,16 @@ chrome.runtime.onMessage.addListener((message) => {
   }
 });
 
-refreshSidebar();
+(function waitForSidebar() {
+  if (document.getElementById('pipeline-tracker-sidebar')) {
+    refreshSidebar();
+  } else {
+    const obs = new MutationObserver(() => {
+      if (document.getElementById('pipeline-tracker-sidebar')) {
+        obs.disconnect();
+        refreshSidebar();
+      }
+    });
+    obs.observe(document.body, { childList: true, subtree: true });
+  }
+})();

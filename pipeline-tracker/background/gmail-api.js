@@ -18,7 +18,7 @@ export async function getRecentThreadIds(token, daysBack = 30) {
     headers: { Authorization: `Bearer ${token}` },
   });
 
-  if (resp.status === 401) {
+  if (resp.status === 401 || resp.status === 403) {
     throw new Error('AUTH_EXPIRED');
   }
 
