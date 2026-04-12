@@ -1,0 +1,268 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  width: 360px;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  color: #1A1A1A;
+  background: #FFFFFF;
+}
+
+.popup {
+  min-height: 200px;
+}
+
+.popup-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #E5E5E3;
+}
+
+.popup-icon {
+  font-size: 18px;
+}
+
+.popup-title {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.popup-section {
+  border-bottom: 1px solid #E5E5E3;
+}
+
+.popup-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  user-select: none;
+}
+
+.popup-section-header:hover {
+  background: #F7F7F5;
+}
+
+.popup-toggle {
+  font-size: 12px;
+  color: #6B6B6B;
+}
+
+.popup-section-body {
+  padding: 0 16px 16px;
+}
+
+.popup-section-body--collapsed {
+  display: none;
+}
+
+.popup-field {
+  margin-bottom: 12px;
+}
+
+.popup-field label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6B6B6B;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 4px;
+}
+
+.popup-input {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid #E5E5E3;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.popup-input:focus {
+  border-color: #378ADD;
+}
+
+.popup-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  border: 1px solid #E5E5E3;
+  transition: all 0.15s;
+}
+
+.popup-btn--primary {
+  width: 100%;
+  background: #1A1A1A;
+  color: #FFFFFF;
+  border-color: #1A1A1A;
+}
+
+.popup-btn--primary:hover {
+  background: #333333;
+}
+
+.popup-btn--secondary {
+  background: #FFFFFF;
+  color: #1A1A1A;
+}
+
+.popup-btn--secondary:hover {
+  background: #F7F7F5;
+}
+
+.popup-btn--action {
+  width: 100%;
+  background: #378ADD;
+  color: #FFFFFF;
+  border-color: #378ADD;
+  margin-top: 4px;
+}
+
+.popup-btn--action:hover {
+  background: #2A74C4;
+}
+
+.popup-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.popup-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.popup-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.popup-status-dot--connected {
+  background: #1D9E75;
+}
+
+.popup-status-dot--disconnected {
+  background: #E24B4A;
+}
+
+.popup-divider {
+  height: 1px;
+  background: #E5E5E3;
+  margin: 12px 0;
+}
+
+.popup-stats {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #6B6B6B;
+  text-align: center;
+}
+
+.popup-stats strong {
+  color: #1A1A1A;
+}
+
+/* Blacklist styles */
+
+.popup-blacklist-count {
+  font-size: 12px;
+  color: #6B6B6B;
+  margin-bottom: 10px;
+}
+
+.popup-blacklist-add {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.popup-blacklist-add .popup-input {
+  flex: 1;
+}
+
+.popup-blacklist-list {
+  max-height: 250px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.popup-blacklist-entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.popup-blacklist-entry:hover {
+  background: #F7F7F5;
+}
+
+.popup-blacklist-entry-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.popup-blacklist-domain-hint {
+  color: #6B6B6B;
+  font-size: 10px;
+  margin-left: 4px;
+}
+
+.popup-blacklist-remove {
+  background: none;
+  border: none;
+  color: #E24B4A;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 4px;
+  line-height: 1;
+  opacity: 0.5;
+}
+
+.popup-blacklist-remove:hover {
+  opacity: 1;
+}
+
+.popup-blacklist-empty {
+  font-size: 12px;
+  color: #6B6B6B;
+  text-align: center;
+  padding: 12px;
+}
+
+.popup-blacklist-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.popup-blacklist-list::-webkit-scrollbar-thumb {
+  background: #E5E5E3;
+  border-radius: 2px;
+}

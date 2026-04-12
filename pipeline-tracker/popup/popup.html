@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup">
+    <div class="popup-header">
+      <span class="popup-icon">◷</span>
+      <span class="popup-title">Loop Back</span>
+    </div>
+
+    <!-- Configuration Section -->
+    <div class="popup-section">
+      <div class="popup-section-header" data-section="config">
+        <span>⚙ Configuration</span>
+        <span class="popup-toggle">▾</span>
+      </div>
+      <div class="popup-section-body" id="config-section">
+        <div class="popup-field">
+          <label>Gmail Account</label>
+          <div id="gmail-status" class="popup-status">
+            <span class="popup-status-dot popup-status-dot--disconnected"></span>
+            <span id="gmail-email">Not connected</span>
+          </div>
+          <button id="gmail-connect" class="popup-btn popup-btn--secondary">Connect Gmail</button>
+        </div>
+
+        <div class="popup-field">
+          <label>Gemini API Key</label>
+          <input type="password" id="gemini-key" class="popup-input" placeholder="Enter Gemini API key">
+        </div>
+
+        <div class="popup-field">
+          <label>Supabase URL</label>
+          <input type="text" id="supabase-url" class="popup-input" placeholder="https://your-project.supabase.co">
+        </div>
+
+        <div class="popup-field">
+          <label>Supabase Anon Key</label>
+          <input type="password" id="supabase-key" class="popup-input" placeholder="Enter Supabase anon key">
+        </div>
+
+        <button id="save-config" class="popup-btn popup-btn--primary">Save Configuration</button>
+
+        <div class="popup-divider"></div>
+
+        <button id="scan-now" class="popup-btn popup-btn--action">⟳ Scan Now</button>
+
+        <div id="stats" class="popup-stats"></div>
+      </div>
+    </div>
+
+    <!-- Sender Blacklist Section -->
+    <div class="popup-section">
+      <div class="popup-section-header" data-section="blacklist">
+        <span>🚫 Sender Blacklist</span>
+        <span class="popup-toggle">▾</span>
+      </div>
+      <div class="popup-section-body" id="blacklist-section">
+        <div id="blacklist-count" class="popup-blacklist-count"></div>
+
+        <div class="popup-blacklist-add">
+          <input type="text" id="blacklist-input" class="popup-input" placeholder="email@example.com or @domain.com">
+          <button id="blacklist-add-btn" class="popup-btn popup-btn--secondary">Add</button>
+        </div>
+
+        <div id="blacklist-list" class="popup-blacklist-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

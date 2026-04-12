@@ -1,0 +1,27 @@
+# Environment & secrets
+.env
+*.env.local
+
+# Cursor IDE
+.cursor/
+
+# Node
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Logs
+*.log
+
+# Build artifacts
+dist/
+build/
