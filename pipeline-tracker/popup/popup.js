@@ -6,14 +6,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function loadConfig() {
   const data = await chrome.storage.local.get([
+    'groq_api_key',
     'gemini_api_key',
     'supabase_url',
     'supabase_anon_key',
     'user_email',
   ]);
 
-  if (data.gemini_api_key) {
-    document.getElementById('gemini-key').value = data.gemini_api_key;
+  const groqVal = data.groq_api_key || data.gemini_api_key || '';
+  if (groqVal) {
+    document.getElementById('groq-key').value = groqVal;
   }
   if (data.supabase_url) {
     document.getElementById('supabase-url').value = data.supabase_url;
@@ -32,15 +34,18 @@ async function loadConfig() {
 }
 
 async function saveConfig() {
-  const geminiKey = document.getElementById('gemini-key').value.trim();
+  const groqKey = document.getElementById('groq-key').value.trim();
   const supabaseUrl = document.getElementById('supabase-url').value.trim();
   const supabaseKey = document.getElementById('supabase-key').value.trim();
 
   await chrome.storage.local.set({
-    gemini_api_key: geminiKey,
+    groq_api_key: groqKey,
     supabase_url: supabaseUrl,
     supabase_anon_key: supabaseKey,
   });
+  if (groqKey) {
+    await chrome.storage.local.remove('gemini_api_key');
+  }
 
   const btn = document.getElementById('save-config');
   btn.textContent = '✓ Saved!';

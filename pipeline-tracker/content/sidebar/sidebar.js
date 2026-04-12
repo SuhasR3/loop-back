@@ -6,8 +6,20 @@ async function refreshSidebar() {
   if (container) container.innerHTML = '<div class="pt-loading">Loading deals...</div>';
 
   try {
-    const response = await chrome.runtime.sendMessage({ type: 'get_deals' });
-    if (!response) return;
+    const response = await window.loopBackChrome.sendMessage({ type: 'get_deals' });
+    if (response === undefined) {
+      window.loopBackChrome?.showReloadHint();
+      if (container) {
+        container.innerHTML =
+          '<div class="pt-empty"><div class="pt-empty-text">Could not reach the extension. Refresh this Gmail tab (⌘R).</div></div>';
+      }
+      return;
+    }
+
+    if (response.error && container) {
+      container.innerHTML = `<div class="pt-empty"><div class="pt-empty-text">${escapeHtml(response.error)}</div></div>`;
+      return;
+    }
 
     allDeals = response.deals || [];
     const counts = response.counts || {};
@@ -21,6 +33,10 @@ async function refreshSidebar() {
 
     await updateScanStatusBar();
   } catch (err) {
+    if (String(err?.message || '').includes('Extension context invalidated')) {
+      window.loopBackChrome?.showReloadHint();
+      return;
+    }
     console.error('[LoopBack Sidebar] Error refreshing:', err);
   }
 }
@@ -29,7 +45,7 @@ async function updateScanStatusBar() {
   const statusEl = document.querySelector('.pt-scan-status');
   if (!statusEl) return;
 
-  const data = await chrome.storage.local.get(['scan_status', 'scan_error', 'last_scan_timestamp']);
+  const data = await window.loopBackChrome.storageLocalGet(['scan_status', 'scan_error', 'last_scan_timestamp']);
   const status = data.scan_status || 'idle';
 
   if (status === 'error' && data.scan_error) {
@@ -161,7 +177,7 @@ async function renderTimeline(dealId) {
 
   try {
     const deal = allDeals.find((d) => d.id === dealId);
-    const response = await chrome.runtime.sendMessage({ type: 'get_messages', dealId });
+    const response = await window.loopBackChrome.sendMessage({ type: 'get_messages', dealId });
     const messages = response?.messages || [];
 
     timelineEl.innerHTML = `
@@ -177,6 +193,11 @@ async function renderTimeline(dealId) {
       dealsEl.style.display = 'flex';
     });
   } catch (err) {
+    if (String(err?.message || '').includes('Extension context invalidated')) {
+      window.loopBackChrome?.showReloadHint();
+      timelineEl.innerHTML = '<div class="pt-empty">Refresh this tab to reconnect.</div>';
+      return;
+    }
     console.error('[LoopBack Sidebar] Error loading timeline:', err);
     timelineEl.innerHTML = '<div class="pt-empty">Error loading timeline</div>';
   }
@@ -261,7 +282,7 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-chrome.runtime.onMessage.addListener((message) => {
+window.loopBackChrome.onMessage((message) => {
   if (message.type === 'state_updated') {
     refreshSidebar();
   }
@@ -269,7 +290,14 @@ chrome.runtime.onMessage.addListener((message) => {
 
 // Poll scan status every 3s so the header always reflects the real state
 // even if the state_updated message is dropped
-setInterval(updateScanStatusBar, 3000);
+const _loopBackStatusPoll = setInterval(() => {
+  if (!window.loopBackChrome?.isAlive()) {
+    clearInterval(_loopBackStatusPoll);
+    window.loopBackChrome?.showReloadHint();
+    return;
+  }
+  updateScanStatusBar();
+}, 3000);
 
 (function waitForSidebar() {
   if (document.getElementById('pipeline-tracker-sidebar')) {

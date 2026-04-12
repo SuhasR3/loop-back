@@ -1,6 +1,6 @@
 # Loop Back — Gmail Thread-State Tracker for Sales Pipelines
 
-A Chrome Extension (Manifest V3) that reads Gmail threads, classifies each message's intent using Gemini, builds a per-thread state machine, and renders a sidebar panel inside Gmail showing all deals sorted by staleness.
+A Chrome Extension (Manifest V3) that reads Gmail threads, classifies each message's intent using **Groq** (JSON mode), builds a per-thread state machine, and renders a sidebar panel inside Gmail showing all deals sorted by staleness.
 
 ## Setup
 
@@ -11,10 +11,10 @@ A Chrome Extension (Manifest V3) that reads Gmail threads, classifies each messa
 3. Create OAuth 2.0 credentials (Chrome Extension type)
 4. Copy the client ID into `manifest.json` → `oauth2.client_id`
 
-### 2. Gemini API
+### 2. Groq API
 
-1. Get an API key from [Google AI Studio](https://aistudio.google.com/apikey)
-2. Enter the key in the extension popup settings
+1. Create an API key at [console.groq.com/keys](https://console.groq.com/keys)
+2. Enter the key in the extension popup settings (or `GROQ_API_KEY` in `service-worker.js` `CONFIG`)
 
 ### 3. Supabase
 
@@ -105,7 +105,7 @@ pipeline-tracker/
 │   ├── service-worker.js      # Main orchestrator
 │   ├── gmail-api.js           # Gmail API wrapper
 │   ├── blacklist-filter.js    # Sender blacklist
-│   ├── llm-classifier.js     # Gemini classification
+│   ├── llm-classifier.js     # Groq (OpenAI-compatible JSON mode)
 │   ├── state-machine.js      # Thread state computation
 │   └── supabase-client.js    # Supabase REST client
 ├── content/
@@ -128,6 +128,6 @@ pipeline-tracker/
 - **Trigger-based scanning**: Scans on Gmail tab focus, periodic 5-min alarm while visible, manual button, or extension install
 - **Debounced**: Skips scan if last one was <60s ago
 - **Blacklist-first**: Sender check runs before any LLM call
-- **LLM classification**: Gemini 2.0 Flash classifies deal intent with structured JSON output
+- **LLM classification**: Groq (`llama-3.3-70b-versatile`) with `response_format: json_object`
 - **State machine**: Deterministic state computation from message sequence
 - **Supabase storage**: Deals and messages persisted via PostgREST API

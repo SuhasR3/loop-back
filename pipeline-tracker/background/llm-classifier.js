@@ -1,47 +1,83 @@
-const GEMINI_MODEL = 'gemini-1.5-flash';
+/**
+ * LLM classification via Groq (OpenAI-compatible API).
+ * JSON output: response_format.type = json_object (requires "json" in messages per API rules).
+ */
 
-async function callGemini(apiKey, prompt, retries = 4) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+const GROQ_CHAT_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_MODEL = 'llama-3.3-70b-versatile';
+
+const JSON_SYSTEM =
+  'You are a precise assistant. Every reply must be a single JSON object only — no markdown fences, no commentary.';
+
+async function callGroq(apiKey, userPrompt, retries = 3) {
+  const url = `${GROQ_CHAT_URL}`;
+
+  const body = {
+    model: GROQ_MODEL,
+    messages: [
+      { role: 'system', content: JSON_SYSTEM },
+      {
+        role: 'user',
+        content: `${userPrompt}\n\nYour entire response must be one valid JSON object (json mode).`,
+      },
+    ],
+    response_format: { type: 'json_object' },
+    temperature: 0.1,
+  };
+
+  let lastErr = null;
 
   for (let attempt = 0; attempt < retries; attempt++) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
 
       const resp = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.1 },
-        }),
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
 
       if (resp.status === 429) {
-        const retryAfter = Math.min(30, Math.pow(2, attempt + 2));
-        console.warn(`[LoopBack] Gemini 429 rate limited, waiting ${retryAfter}s before retry…`);
-        await sleep(retryAfter * 1000);
+        const t = await resp.text();
+        const wait = Math.min(20, 2 ** (attempt + 2));
+        console.warn(`[LoopBack] Groq 429, waiting ${wait}s…`, t.slice(0, 120));
+        await sleep(wait * 1000);
+        lastErr = new Error(`Groq 429: ${t}`);
         continue;
       }
 
       if (!resp.ok) {
         const errText = await resp.text();
-        throw new Error(`Gemini API ${resp.status}: ${errText}`);
+        lastErr = new Error(`Groq API ${resp.status}: ${errText}`);
+        if (resp.status >= 500 && attempt < retries - 1) {
+          await sleep(1000 * (attempt + 1));
+          continue;
+        }
+        throw lastErr;
       }
 
       const data = await resp.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      const text = data.choices?.[0]?.message?.content || '';
+      console.log(`[LoopBack] Groq ${GROQ_MODEL} OK`);
       return parseJsonResponse(text);
     } catch (err) {
+      lastErr = err;
+      if (err.name === 'AbortError') {
+        throw new Error('Groq request timed out after 60s');
+      }
       if (attempt < retries - 1) {
         await sleep(Math.pow(2, attempt) * 1000);
-        continue;
       }
-      throw err;
     }
   }
+
+  throw lastErr || new Error('Groq call failed');
 }
 
 function parseJsonResponse(text) {
@@ -78,16 +114,16 @@ Recent messages (most recent first):
 ${msgText}
 ---
 
-Respond with ONLY this JSON, no other text:
+Respond with ONLY this JSON object shape:
 {
-  "is_deal": true/false,
-  "confidence": 0.0-1.0,
-  "company": "extracted company name or null",
-  "contact_name": "primary contact name or null",
-  "contact_email": "primary contact email or null"
+  "is_deal": true or false,
+  "confidence": number from 0.0 to 1.0,
+  "company": string or null,
+  "contact_name": string or null,
+  "contact_email": string or null
 }`;
 
-  const result = await callGemini(apiKey, prompt);
+  const result = await callGroq(apiKey, prompt);
   return {
     isDeal: result.is_deal === true && (result.confidence || 0) >= 0.6,
     company: result.company || null,
@@ -119,37 +155,28 @@ New message to classify:
 ${messageBody.substring(0, 1000)}
 ---
 
-Classify this message and extract structured data. Respond with ONLY this JSON:
+Classify this message. Respond with ONLY this JSON object shape:
 {
-  "intent": one of ["intro", "ask", "commit", "defer", "reject", "agree", "follow_up", "info"],
-  "summary": "one-line summary, max 80 chars",
-  "promised_date": "ISO date string if a specific date/day is mentioned, null otherwise",
-  "deal_value": number if a dollar amount is mentioned for the deal, null otherwise,
-  "needs_response": true/false
+  "intent": one of "intro", "ask", "commit", "defer", "reject", "agree", "follow_up", "info",
+  "summary": string max 80 chars,
+  "promised_date": ISO date string or null,
+  "deal_value": number or null,
+  "needs_response": boolean
 }
 
 Intent definitions:
-- "intro": First outreach or introduction message
-- "ask": Requesting information, pricing, details, a meeting
-- "commit": Agreeing to next steps, signing, purchasing
-- "defer": Explicitly delaying ("let me check with my team", "circle back next week")
-- "reject": Declining, not interested, going with competitor
-- "agree": Positive acknowledgment, accepting terms, confirming
-- "follow_up": Checking in, nudging, "just following up"
-- "info": Sharing information without requesting action (sending docs, FYI)
+- intro: First outreach or introduction message
+- ask: Requesting information, pricing, details, a meeting
+- commit: Agreeing to next steps, signing, purchasing
+- defer: Explicitly delaying
+- reject: Declining, not interested, going with competitor
+- agree: Positive acknowledgment, accepting terms, confirming
+- follow_up: Checking in, nudging
+- info: Sharing information without requesting action
 
-For promised_date:
-- "Friday" when today is Wednesday Apr 9 → "2026-04-11"
-- "next week" → the following Monday
-- "end of month" → last day of current month
-- Today's date is ${currentDate}
-- If vague ("soon", "sometime"), set to null
+For promised_date use ISO date; today's date is ${currentDate}. If vague, null.
 
-For deal_value:
-- Extract the DEAL size, not arbitrary numbers
-- "$48k" → 48000
-- "$1.2M" → 1200000
-- "200/month" → null (this is pricing, not deal value — unless context makes total clear)`;
+For deal_value extract DEAL size in dollars; "$48k" -> 48000. Monthly pricing alone -> null unless total is clear.`;
 
-  return callGemini(apiKey, prompt);
+  return callGroq(apiKey, prompt);
 }

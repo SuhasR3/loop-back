@@ -78,27 +78,37 @@ function injectToggleButton() {
   toolbar.appendChild(btn);
 }
 
-// --- Scan trigger management ---
+// --- Scan trigger management (guarded: extension reload invalidates context) ---
 
-chrome.runtime.sendMessage({ type: 'gmail_tab_active' });
-chrome.runtime.sendMessage({ type: 'scan_requested' });
+function loopBackPingScan() {
+  const lb = window.loopBackChrome;
+  if (!lb) return;
+  void lb.sendMessage({ type: 'gmail_tab_active' }).catch(() => {});
+  void lb.sendMessage({ type: 'scan_requested' }).catch(() => {});
+}
+
+function loopBackInactive() {
+  const lb = window.loopBackChrome;
+  if (!lb) return;
+  void lb.sendMessage({ type: 'gmail_tab_inactive' }).catch(() => {});
+}
+
+loopBackPingScan();
 
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
-    chrome.runtime.sendMessage({ type: 'gmail_tab_active' });
-    chrome.runtime.sendMessage({ type: 'scan_requested' });
+    loopBackPingScan();
   } else {
-    chrome.runtime.sendMessage({ type: 'gmail_tab_inactive' });
+    loopBackInactive();
   }
 });
 
 window.addEventListener('focus', () => {
-  chrome.runtime.sendMessage({ type: 'gmail_tab_active' });
-  chrome.runtime.sendMessage({ type: 'scan_requested' });
+  loopBackPingScan();
 });
 
 window.addEventListener('blur', () => {
-  chrome.runtime.sendMessage({ type: 'gmail_tab_inactive' });
+  loopBackInactive();
 });
 
 // --- Wait for Gmail to load, then inject ---

@@ -9,13 +9,14 @@ import {
 } from './supabase-client.js';
 
 const CONFIG = {
-  GEMINI_API_KEY: 'AIzaSyDrmB2nHoIkf6PVkQ6q425HTpqbJO_4Yyk',
+  GROQ_API_KEY: '',
   SUPABASE_URL: 'https://vfxeglbocncuobdelllk.supabase.co',
   SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZmeGVnbGJvY25jdW9iZGVsbGxrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5NTQ5MzEsImV4cCI6MjA5MTUzMDkzMX0.Ka5-CwinwfhxaTKzU-jboQGYpRob2IK3EGcGODcsGP4',
   SCAN_DEBOUNCE_SECONDS: 60,
   PERIODIC_SCAN_MINUTES: 5,
   STALE_THRESHOLD_DAYS: 7,
-  MAX_THREADS_PER_SCAN: 1,
+  /** Inbox threads to consider per scan (each new thread uses 1 Groq call for classifyIsDeal; deals add more calls per message). */
+  MAX_THREADS_PER_SCAN: 25,
   MAX_MESSAGES_PER_SCAN: 20,
   MAX_THREAD_DEPTH: 20,
 };
@@ -24,9 +25,9 @@ let gmailTabVisible = false;
 let scanInProgress = false;
 
 async function getConfig() {
-  const stored = await chrome.storage.local.get(['gemini_api_key', 'supabase_url', 'supabase_anon_key']);
+  const stored = await chrome.storage.local.get(['groq_api_key', 'gemini_api_key', 'supabase_url', 'supabase_anon_key']);
   return {
-    GEMINI_API_KEY: stored.gemini_api_key || CONFIG.GEMINI_API_KEY,
+    GROQ_API_KEY: stored.groq_api_key || stored.gemini_api_key || CONFIG.GROQ_API_KEY,
     SUPABASE_URL: stored.supabase_url || CONFIG.SUPABASE_URL,
     SUPABASE_ANON_KEY: stored.supabase_anon_key || CONFIG.SUPABASE_ANON_KEY,
   };
@@ -74,17 +75,22 @@ async function runScanPipeline() {
 
   const scanTimeout = setTimeout(async () => {
     if (scanInProgress) {
-      console.error('[LoopBack] Scan timed out after 60s');
-      await setScanStatus('error', 'Scan timed out after 60s — check service worker console for details');
+      console.error('[LoopBack] Scan timed out after 45s');
+      await setScanStatus('error', 'Scan timed out after 45s — check service worker console for details');
       scanInProgress = false;
     }
-  }, 120000);
+  }, 45000);
 
   try {
     const cfg = await getConfig();
-    if (!cfg.GEMINI_API_KEY) {
-      await setScanStatus('error', 'Gemini API key not configured. Enter it in the popup settings.');
-      console.warn('[LoopBack] Gemini API key not configured');
+    const keyMeta = await chrome.storage.local.get(['groq_api_key', 'gemini_api_key']);
+    const keyFromPopup = !!(keyMeta.groq_api_key || keyMeta.gemini_api_key);
+    console.log(
+      `[LoopBack] Groq API key source: ${keyFromPopup ? 'Extension popup (overrides CONFIG)' : 'service-worker.js CONFIG'}`
+    );
+    if (!cfg.GROQ_API_KEY) {
+      await setScanStatus('error', 'Groq API key not configured. Get one at console.groq.com/keys and enter it in the popup.');
+      console.warn('[LoopBack] Groq API key not configured');
       return;
     }
 
@@ -158,9 +164,9 @@ async function runScanPipeline() {
       let existingDeal = await getExistingDeal(threadId);
 
       if (!existingDeal) {
-        console.log(`[LoopBack] ④ New thread — calling Gemini to classify as deal…`);
+        console.log(`[LoopBack] ④ New thread — calling Groq to classify as deal…`);
         const messageBodies = threadData.messages.slice(0, 3).map((m) => m.bodyText);
-        const classification = await classifyIsDeal(cfg.GEMINI_API_KEY, threadData.subject, messageBodies);
+        const classification = await classifyIsDeal(cfg.GROQ_API_KEY, threadData.subject, messageBodies);
         messagesProcessed++;
         console.log(`[LoopBack]    → isDeal: ${classification.isDeal}, company: ${classification.company}`);
 
@@ -210,7 +216,7 @@ async function runScanPipeline() {
         console.log(`[LoopBack]    → classifying message ${msg.id} (${direction})…`);
         try {
           const classified = await classifyMessage(
-            cfg.GEMINI_API_KEY,
+            cfg.GROQ_API_KEY,
             msg.bodyText,
             direction,
             threadData.subject,
@@ -274,7 +280,9 @@ async function runScanPipeline() {
 
     await chrome.storage.local.set({ last_scan_timestamp: Date.now() });
     await setScanStatus('idle');
-    console.log(`[LoopBack] Scan complete. Processed ${messagesProcessed} messages.`);
+    console.log(
+      `[LoopBack] Scan complete. Threads scanned: ${threadIds.length}. Groq LLM calls: ${messagesProcessed} (each new thread = 1 “is deal?” call; each new message in a deal = 1 more). If you only see 2 calls with 2 threads, both were likely classified as not-a-deal.`
+    );
 
     notifyContentScript('state_updated');
 
@@ -342,21 +350,38 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       break;
 
     case 'get_deals':
-      ensureSupabase().then((ok) => {
-        if (!ok) return sendResponse({ deals: [], counts: {} });
-        return getAllDeals().then((deals) =>
-          getDealCounts().then((counts) => sendResponse({ deals, counts }))
-        );
-      });
+      (async () => {
+        try {
+          const ok = await ensureSupabase();
+          if (!ok) {
+            sendResponse({ deals: [], counts: {} });
+            return;
+          }
+          const deals = await getAllDeals();
+          const counts = await getDealCounts();
+          sendResponse({ deals, counts });
+        } catch (err) {
+          console.error('[LoopBack] get_deals failed:', err);
+          sendResponse({ deals: [], counts: {}, error: String(err?.message || err) });
+        }
+      })();
       return true;
 
     case 'get_messages':
-      ensureSupabase().then((ok) => {
-        if (!ok) return sendResponse({ messages: [] });
-        return getMessagesForDeal(message.dealId).then((messages) =>
-          sendResponse({ messages })
-        );
-      });
+      (async () => {
+        try {
+          const ok = await ensureSupabase();
+          if (!ok) {
+            sendResponse({ messages: [] });
+            return;
+          }
+          const messages = await getMessagesForDeal(message.dealId);
+          sendResponse({ messages });
+        } catch (err) {
+          console.error('[LoopBack] get_messages failed:', err);
+          sendResponse({ messages: [], error: String(err?.message || err) });
+        }
+      })();
       return true;
 
     default:
