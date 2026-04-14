@@ -1,5 +1,7 @@
 # Loop Back — AI state machine inside Gmail
 
+![Alt Text](https://github.com/SuhasR3/loop-back/blob/main/pipeline-tracker/demo.jpeg)
+
 A Chrome Extension (Manifest V3) that scans your Gmail inbox and automatically classifies email threads into a trackable pipeline with two independent dimensions: **Direction** (who owes the next action) and **Timing** (is the thread on schedule, stale, or scheduled).
 
 ## How It Works
