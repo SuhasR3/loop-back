@@ -1,4 +1,4 @@
-# Loop Back — Gmail Pipeline Tracker
+# Loop Back — AI state machine inside Gmail
 
 A Chrome Extension (Manifest V3) that scans your Gmail inbox and automatically classifies email threads into a trackable pipeline with two independent dimensions: **Direction** (who owes the next action) and **Timing** (is the thread on schedule, stale, or scheduled).
 
