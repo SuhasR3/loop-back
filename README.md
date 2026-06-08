@@ -1,153 +1,137 @@
-# Loop Back — AI state machine inside Gmail
+# Loop Back
+
+Tracks which Gmail threads are waiting on you, and which have gone stale, from inside Gmail.
+
+![JavaScript](https://img.shields.io/badge/JavaScript-ES_Modules-f7df1e)
+![Chrome MV3](https://img.shields.io/badge/Chrome-Manifest_V3-4285F4)
+![LLM](https://img.shields.io/badge/LLM-Groq_llama_3.3_70b-FF6B00)
+![Database](https://img.shields.io/badge/Database-Supabase_Postgres-3ECF8E)
+
+> 🏆 Winner · VillageHacks 2026 · Arizona State University
 
 ![Alt Text](https://github.com/SuhasR3/loop-back/blob/main/pipeline-tracker/demo.jpeg)
 
-A Chrome Extension (Manifest V3) that scans your Gmail inbox and automatically classifies email threads into a trackable pipeline with two independent dimensions: **Direction** (who owes the next action) and **Timing** (is the thread on schedule, stale, or scheduled).
+## What it is
 
-## How It Works
+Email threads that need follow up get buried. Loop Back scans your inbox, uses an LLM to decide which threads are worth tracking (deals, event coordination, action items), and renders a sidebar inside Gmail showing who owes the next reply and whether each thread is on schedule or stale.
 
-1. **Gmail Scan** — On load and every 5 minutes, the extension fetches your 20 most recent inbox threads via the Gmail API.
-2. **LLM Classification** — Each thread is sent to Groq (LLaMA 3.3 70B) to determine if it's trackable (deals, event coordination, action items, etc.).
-3. **State Machine** — Classified threads are assigned two independent dimensions:
-   - **Direction**: `You Owe` (ball is in your court) or `They Owe` (waiting on them)
-   - **Timing**: `Active`, `Scheduled` (future promised date), or `Stale` (14+ days inactive or past promised date)
-4. **Sidebar** — A sidebar injected into Gmail shows all tracked threads with filter pills, colored intent blips on the timeline, and urgency badges.
-5. **Supabase Storage** — All deal state and message history is persisted in a Supabase Postgres database.
+It is a local prototype loaded as an unpacked extension, not a published Web Store product. The LLM is deliberately the least interesting part of the system. It classifies individual messages; a deterministic state machine does everything else.
+
+## Features
+
+- **Automatic scanning, gated on visibility.** Triggered on install, browser startup, Gmail tab focus, a 5 minute alarm, and a manual button. Debounced to skip scans less than 60 seconds apart and guarded by a 180 second watchdog.
+- **Two stage LLM classification.** First decides whether a thread is trackable (accepted only when confidence is at least 0.4), then classifies each new message into one of 8 intents with a short summary, an optional promised date, and an optional dollar value.
+- **Dual dimension state tracking.** Every thread carries two independent labels: Direction (`you_owe` / `they_owe`) and Timing (`active` / `scheduled` / `stale`), plus terminal `won` / `dead` states. Computed by rules, not by the model.
+- **Sender blacklist.** Runs before any LLM call, seeded with common automated senders, editable in the popup.
+- **Urgency flagging.** A thread is marked urgent when it is waiting on you for more than 3 days.
 
 ## Architecture
 
+Components:
+
+- **Service worker** (`background/service-worker.js`): the scan loop, orchestration, debounce and timeout logic, alarm scheduling, and the message router that content scripts and the popup call into.
+- **Gmail API client** (`background/gmail-api.js`): OAuth token retrieval, thread and message fetch, header and body parsing, sender and direction detection.
+- **LLM classifier** (`background/llm-classifier.js`): Groq chat completions in JSON mode, rate limiting, retries, and defensive JSON parsing.
+- **State machine** (`background/state-machine.js`): a pure `computeState(messages)` returning direction, timing, terminal state, and staleness.
+- **Supabase client** (`background/supabase-client.js`): a hand rolled PostgREST client (no SDK) for the three tables.
+- **Content scripts and popup**: sidebar injection and rendering, a `chrome.runtime` bridge that survives extension reloads, and the settings and blacklist UI.
+
+Data flow (one scan):
+
 ```
-pipeline-tracker/
-├── manifest.json              # MV3 config, OAuth2, permissions
-├── background/
-│   ├── service-worker.js      # Main scan loop, orchestration
-│   ├── gmail-api.js           # Gmail API calls (threads, messages, auth)
-│   ├── llm-classifier.js      # Groq LLM classification (is-deal + message intent)
-│   ├── state-machine.js       # Dual-dimension state computation
-│   ├── supabase-client.js     # Supabase REST API client + state parser
-│   └── blacklist-filter.js    # Sender blacklist (skip automated emails)
-├── content/
-│   ├── loop-back-chrome.js    # Content script bridge
-│   ├── inject-sidebar.js      # Sidebar DOM injection into Gmail
-│   └── sidebar/
-│       ├── index.html         # Sidebar markup
-│       ├── sidebar.js         # Sidebar rendering, filters, timeline
-│       └── sidebar.css        # Styles, badges, blips, animations
-├── popup/
-│   ├── popup.html             # Extension popup (settings, API keys)
-│   ├── popup.js               # Popup logic
-│   └── popup.css              # Popup styles
-├── icons/                     # Extension icons (16, 48, 128px)
-└── seed-demo-data.js          # Demo data seeder (dev only)
-```
-
-## State Machine
-
-The state machine computes two independent dimensions per deal:
-
-| Dimension | Values | Logic |
-|-----------|--------|-------|
-| **Direction** | `you_owe`, `they_owe` | Based on who sent the last message (inbound = you_owe, outbound = they_owe) |
-| **Timing** | `active`, `scheduled`, `stale` | Based on promised dates and days since last activity |
-| **Terminal** | `dead`, `won` | Latest inbound message was a reject or commit |
-
-The UI shows both dimensions as separate pill badges on each deal card.
-
-## Intent Blips
-
-Each message in the timeline gets a colored dot indicating its intent:
-
-- **Green** — commit / agree
-- **Red** — reject
-- **Orange** — defer
-- **Yellow** — ask / follow_up
-- **Blue** — intro / info
-
-## Setup
-
-### Prerequisites
-
-- Google Chrome
-- A Google Cloud project with the Gmail API enabled
-- A Groq API key ([console.groq.com/keys](https://console.groq.com/keys))
-- A Supabase project with the required tables
-
-### 1. Google Cloud OAuth
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com/) and create or select a project.
-2. Enable the **Gmail API**.
-3. Go to **Google Auth Platform > Clients** and create a new OAuth client:
-   - Application type: **Chrome Extension**
-   - Item ID: your extension ID (found at `chrome://extensions/` after loading unpacked)
-4. Copy the Client ID and paste it into `manifest.json` under `oauth2.client_id`.
-5. Under **Audience**, set the user type to **Internal** (for Google Workspace) or add test users.
-
-### 2. Supabase
-
-Create a Supabase project and run the following SQL to create the required tables:
-
-```sql
-CREATE TABLE deals (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  thread_id TEXT NOT NULL UNIQUE,
-  subject TEXT NOT NULL,
-  contact_name TEXT,
-  contact_email TEXT,
-  company TEXT,
-  deal_value NUMERIC,
-  current_state TEXT DEFAULT 'waiting_on_them',
-  staleness_days INTEGER DEFAULT 0,
-  promised_date DATE,
-  last_activity_at TIMESTAMPTZ,
-  last_action_summary TEXT,
-  needs_response BOOLEAN DEFAULT FALSE,
-  direction TEXT,
-  timing TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE messages (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  deal_id UUID REFERENCES deals(id) ON DELETE CASCADE,
-  gmail_message_id TEXT NOT NULL,
-  direction TEXT NOT NULL,
-  intent TEXT,
-  summary TEXT,
-  promised_date DATE,
-  deal_value NUMERIC,
-  message_date TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE skipped_threads (
-  thread_id TEXT PRIMARY KEY,
-  checked_at TIMESTAMPTZ DEFAULT NOW()
-);
+                         (focus / alarm / install / "Scan Now")
+                                        |
+                                        v
+   inject-sidebar.js / popup.js  --chrome.runtime.sendMessage-->  service-worker.js
+                                                                        |
+                                          getConfig() from chrome.storage.local
+                                                                        |
+                          getAuthToken() (chrome.identity) + getUserEmail()
+                                                                        |
+                  getRecentThreadIds(token, 30d, max 100) --> slice to 20  (Gmail API)
+                                                                        |
+                                              for each threadId:
+                                                                        |
+                       isSkippedThread? / isBlacklisted(sender)?  --> skip
+                                                                        |
+                              getThread(token, id)  (Gmail API, format=full)
+                                                                        |
+                 new thread? --> classifyIsDeal()  (Groq)  --> not deal --> skipThread()
+                                                                        |
+                                       createDeal()  (Supabase POST)
+                                                                        |
+              for each new message: classifyMessage() (Groq) --> addMessage() (Supabase)
+                                                                        |
+                  getMessagesForDeal() --> computeState() --> updateDealState() (Supabase)
+                                                                        |
+                       notifyContentScript('state_updated') --> sidebar.refreshSidebar()
 ```
 
-### 3. Load the Extension
+Sync and async boundaries:
 
-1. Open `chrome://extensions/` and enable **Developer mode**.
-2. Click **Load unpacked** and select the `pipeline-tracker/` folder.
-3. Click the extension icon and enter your Groq API key, Supabase URL, and Supabase anon key in the popup settings.
-4. Open Gmail — the sidebar should appear and begin scanning.
+- Processing is sequential. Threads one at a time, messages within a thread one at a time. No parallelism or batching of LLM calls.
+- Throughput is throttled on purpose with a 1.5 second minimum gap between Groq calls.
+- Per scan budgets cap work at 20 threads and 50 Groq calls. Remaining work defers to the next cycle.
+- UI updates are push based via `chrome.tabs.sendMessage`, with a 3 second poll used only for the scan status text.
 
-## Configuration
+## Engineering decisions
 
-All credentials are entered via the extension popup (no hardcoded keys):
+**Deterministic state, not LLM state.** The model classifies individual message intent. A pure `computeState` function derives Direction and Timing from the message sequence using fixed rules: latest message direction, defer with a promised date, 14 day staleness, terminal reject or commit. State transitions stay auditable instead of depending on model output.
 
-| Setting | Where to get it |
-|---------|----------------|
-| Groq API Key | [console.groq.com/keys](https://console.groq.com/keys) |
-| Supabase URL | Your Supabase project dashboard |
-| Supabase Anon Key | Supabase project settings > API |
-| OAuth Client ID | Google Cloud Console > Auth Platform > Clients |
+**Cost discipline tuned to a real ceiling.** The blacklist runs before any LLM call, and confirmed non deals are written to `skipped_threads` so they never cost a token twice. The classifier enforces a 1.5 second inter call gap, per scan caps of 20 threads and 50 calls, and a 180 second watchdog, all tuned to Groq's free tier limits (12k tokens per minute, 100k per day).
 
-## Rate Limits
+**One composite state column, two dimensions reconstructed on read.** The database CHECK constraint allows only 6 legacy enum values, so the two dimension model maps down to a database safe value on write and `parseDealState` rebuilds Direction and Timing on read. This keeps the schema backward compatible at the cost of being lossy for some combinations.
 
-The extension includes built-in rate limiting (1.5s between Groq API calls) to stay within Groq's free tier limits (12k TPM, 100k TPD). The scan timeout is set to 180 seconds to accommodate throttled processing.
+**Hand rolled PostgREST client, no SDK.** Loop Back talks to Supabase directly over REST with the anon key, which keeps the MV3 service worker free of runtime dependencies and needs no bundler or build step.
 
-## License
+**Surviving the MV3 "Extension context invalidated" failure.** Reloading the extension while Gmail stays open kills `chrome.runtime` in still running content scripts. A bridge detects the dead runtime and shows a "refresh this tab" hint instead of throwing.
 
-MIT
+**Visibility gated work.** The 5 minute alarm only runs while a Gmail tab is visible, so there is no background API usage when you are away from Gmail.
+
+**Gemini to Groq migration with scrubbed secrets.** The classifier was migrated from an earlier Gemini implementation to Groq `llama-3.3-70b-versatile`. All credentials are entered in the popup and stored in `chrome.storage.local`; a dedicated commit scrubbed previously hardcoded keys.
+
+## Tech stack
+
+- **Language**: vanilla JavaScript, ES modules. No framework, no bundler, no build step.
+- **Platform**: Chrome Manifest V3. Module service worker, content scripts at `document_idle`.
+- **LLM**: Groq, OpenAI compatible chat completions, model `llama-3.3-70b-versatile`.
+- **Database**: Supabase (Postgres + PostgREST), accessed over REST with the anon key.
+- **Auth**: Google OAuth2 via `chrome.identity`, scope `gmail.readonly`.
+
+## Data model
+
+<details>
+<summary>Three tables in Supabase Postgres</summary>
+
+- **`deals`**: one row per tracked thread. Holds `subject`, `contact_name`, `contact_email`, `company`, `deal_value`, `current_state`, `staleness_days`, `promised_date`, `last_activity_at`, `last_action_summary`, `needs_response`, and timestamps.
+- **`messages`**: one row per classified email. Holds `deal_id` (foreign key, cascade on delete), `gmail_message_id` (unique), `direction` (`inbound` / `outbound`), `intent` (one of 8, CHECK constrained), `summary`, `promised_date`, `deal_value`, `message_date`.
+- **`skipped_threads`**: `thread_id` plus `checked_at`, so threads classified as non deals are never reclassified.
+
+</details>
+
+## Setup and run
+
+1. Clone the repo. At `chrome://extensions`, enable Developer mode and Load unpacked, pointed at the project directory.
+2. Create a Supabase project and run the schema SQL to create the three tables.
+3. Replace the placeholder OAuth `client_id` in `manifest.json` with your own Google Cloud OAuth client (Gmail read only scope).
+4. Open the extension popup. Enter your Groq API key, Supabase URL, and Supabase anon key.
+5. Click Connect Gmail and complete the Google OAuth consent.
+6. Open Gmail. The sidebar injects and the first scan runs.
+
+Optional: run `node seed-demo-data.js` to populate fabricated demo deals for screenshots. This wipes existing data first.
+
+## Scope and limitations
+
+This is a personal use prototype, and the README is honest about what that means.
+
+- **No production hardening.** Loaded unpacked, no Web Store packaging, no CI, no tests.
+- **Permissive security.** Supabase RLS policies are set to allow all, so the anon key has unrestricted read and write to every table, with no per user scoping. API keys sit unencrypted in `chrome.storage.local`. Acceptable for local single user use; real deployment would need per user RLS and a credential proxy.
+- **Single deal pool.** The data model has no user column, so two Gmail accounts pointed at the same Supabase project share one set of deals.
+- **Lossy state reconstruction.** Because state is stored as one legacy enum and re expanded on read, some Direction plus Timing combinations cannot be perfectly recovered.
+- **Coarse error handling.** Failures log to the service worker console and surface as a status string. There is no retry queue, and a failed message classification is skipped silently.
+
+## Roadmap
+
+- **Local LLM for privacy.** Email content currently goes to Groq's API. A local model (for example via Ollama) would keep inbox content on device and remove the third party dependency for classification.
+- **Per user RLS and a credential proxy**, so keys never live in the browser.
+- **Web Store packaging and a test suite.**
