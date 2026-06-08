@@ -13,9 +13,7 @@ Tracks which Gmail threads are waiting on you, and which have gone stale, from i
 
 ## What it is
 
-Email threads that need follow up get buried. Loop Back scans your inbox, uses an LLM to decide which threads are worth tracking (deals, event coordination, action items), and renders a sidebar inside Gmail showing who owes the next reply and whether each thread is on schedule or stale.
-
-It is a local prototype loaded as an unpacked extension, not a published Web Store product. The LLM is deliberately the least interesting part of the system. It classifies individual messages; a deterministic state machine does everything else.
+Email threads that need follow up get buried. Loop Back scans your inbox, uses an LLM to decide which threads are worth tracking (deals, event coordination, action items), and renders a sidebar inside Gmail showing who owes the next reply and whether each thread is on schedule or stale. The LLM classifies individual messages and a deterministic state machine does everything else.
 
 ## Features
 
@@ -88,8 +86,6 @@ Sync and async boundaries:
 
 **Visibility gated work.** The 5 minute alarm only runs while a Gmail tab is visible, so there is no background API usage when you are away from Gmail.
 
-**Gemini to Groq migration with scrubbed secrets.** The classifier was migrated from an earlier Gemini implementation to Groq `llama-3.3-70b-versatile`. All credentials are entered in the popup and stored in `chrome.storage.local`; a dedicated commit scrubbed previously hardcoded keys.
-
 ## Tech stack
 
 - **Language**: vanilla JavaScript, ES modules. No framework, no bundler, no build step.
@@ -97,17 +93,6 @@ Sync and async boundaries:
 - **LLM**: Groq, OpenAI compatible chat completions, model `llama-3.3-70b-versatile`.
 - **Database**: Supabase (Postgres + PostgREST), accessed over REST with the anon key.
 - **Auth**: Google OAuth2 via `chrome.identity`, scope `gmail.readonly`.
-
-## Data model
-
-<details>
-<summary>Three tables in Supabase Postgres</summary>
-
-- **`deals`**: one row per tracked thread. Holds `subject`, `contact_name`, `contact_email`, `company`, `deal_value`, `current_state`, `staleness_days`, `promised_date`, `last_activity_at`, `last_action_summary`, `needs_response`, and timestamps.
-- **`messages`**: one row per classified email. Holds `deal_id` (foreign key, cascade on delete), `gmail_message_id` (unique), `direction` (`inbound` / `outbound`), `intent` (one of 8, CHECK constrained), `summary`, `promised_date`, `deal_value`, `message_date`.
-- **`skipped_threads`**: `thread_id` plus `checked_at`, so threads classified as non deals are never reclassified.
-
-</details>
 
 ## Setup and run
 
@@ -118,20 +103,10 @@ Sync and async boundaries:
 5. Click Connect Gmail and complete the Google OAuth consent.
 6. Open Gmail. The sidebar injects and the first scan runs.
 
-Optional: run `node seed-demo-data.js` to populate fabricated demo deals for screenshots. This wipes existing data first.
-
 ## Scope and limitations
 
-This is a personal use prototype, and the README is honest about what that means.
-
-- **No production hardening.** Loaded unpacked, no Web Store packaging, no CI, no tests.
 - **Permissive security.** Supabase RLS policies are set to allow all, so the anon key has unrestricted read and write to every table, with no per user scoping. API keys sit unencrypted in `chrome.storage.local`. Acceptable for local single user use; real deployment would need per user RLS and a credential proxy.
 - **Single deal pool.** The data model has no user column, so two Gmail accounts pointed at the same Supabase project share one set of deals.
 - **Lossy state reconstruction.** Because state is stored as one legacy enum and re expanded on read, some Direction plus Timing combinations cannot be perfectly recovered.
 - **Coarse error handling.** Failures log to the service worker console and surface as a status string. There is no retry queue, and a failed message classification is skipped silently.
-
-## Roadmap
-
 - **Local LLM for privacy.** Email content currently goes to Groq's API. A local model (for example via Ollama) would keep inbox content on device and remove the third party dependency for classification.
-- **Per user RLS and a credential proxy**, so keys never live in the browser.
-- **Web Store packaging and a test suite.**
