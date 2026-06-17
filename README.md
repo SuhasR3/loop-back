@@ -7,7 +7,7 @@ Tracks which Gmail threads are waiting on you, and which have gone stale, from i
 ![LLM](https://img.shields.io/badge/LLM-Groq_llama_3.3_70b-FF6B00)
 ![Database](https://img.shields.io/badge/Database-Supabase_Postgres-3ECF8E)
 
-> 🏆 Winner · VillageHacks 2026 · Arizona State University
+> 🏆 Winner · VillageHacks 2026 (UcheNova Track) · Arizona State University
 
 ![Alt Text](https://github.com/SuhasR3/loop-back/blob/main/pipeline-tracker/demo.jpeg)
 
